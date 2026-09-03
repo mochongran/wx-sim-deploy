@@ -4162,13 +4162,31 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     var post = {
       id: "mp_" + Date.now() + "_" + Math.floor(Math.random() * 10000),
       author: persona.name, avatar: persona.avatar,
-      text: topic.text, images: [], imagePrompts: imagePrompts,
+      text: topic.text, images: [], imagePrompts: imagePrompts.slice(),
       time: "刚刚", likes: [], comments: [], liked: false,
       isPersonaPost: true, personaId: persona.id
     };
     posts.unshift(post);
     savePosts();
     renderMoments();
+    // 自动生成配图：逐个调用图像 API，完成后替换 prompt 卡片为真实图片
+    if (imagePrompts.length > 0 && apiConfig.image && apiConfig.image.enabled && apiConfig.image.key) {
+      imagePrompts.forEach(function(prompt, idx) {
+        generateImageSrc(prompt, "1024x1024").then(function(url) {
+          var p = findPost(post.id);
+          if (!p) return;
+          var imgs = p.images || (p.images = []);
+          var prms = p.imagePrompts || (p.imagePrompts = []);
+          // 找到对应 prompt 并移除，加入 images
+          var at = prms.indexOf(prompt);
+          if (at >= 0) prms.splice(at, 1);
+          imgs.push(url || fallbackImageSrc(prompt));
+          if (!url) console.warn("角色动态配图生成失败，使用占位图");
+          savePosts();
+          renderMoments();
+        });
+      });
+    }
   }
 
   var personaSchedule = load("wx_persona_schedule_v1", {});
@@ -5167,7 +5185,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   // ============================================================
   var _defaultApiConfig = {
     text:  { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "deepseek-v4-flash" },
-    image: { enabled: true, baseUrl: "https://api.aixoras.com/v1", key: "sk-BEJqCArsWctUk62wyC0tOSwBVpLv0dSgLsIsIbdQfWhjmLNJ", model: "gpt-image-1" },
+    image: { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "gpt-image-2" },
     voice: { enabled: true, baseUrl: "https://api.aixoras.com/v1", key: "sk-BEJqCArsWctUk62wyC0tOSwBVpLv0dSgLsIsIbdQfWhjmLNJ", model: "tts-1" }
   };
   var apiConfig = load("wx_api_config_v1", _defaultApiConfig);
