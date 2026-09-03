@@ -4246,6 +4246,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
         '<button class="detail-action-btn secondary" id="detailVideoCall">'+iconSvg("video",18,"#555")+' 音视频通话</button>' +
       '</div>' +
       (c.isPersona ? '<div style="padding:12px 16px 0"><button id="detailEditPersona" style="width:100%;padding:13px;background:#fff;border:0.5px solid var(--rule);border-radius:8px;color:#333;font-size:15px;font-family:inherit">编辑人设 / 形象</button></div>' : '') +
+      (c.isPersona ? '<div style="padding:12px 16px 0"><button id="detailTriggerMoment" style="width:100%;padding:13px;background:#07c160;border:0;border-radius:8px;color:#fff;font-size:15px;font-family:inherit">让 TA 发条朋友圈</button></div>' : '') +
       (c.isPersona ? '<div style="padding:12px 16px"><button id="detailDeletePersona" style="width:100%;padding:13px;background:#fff;border:0.5px solid var(--rule);border-radius:8px;color:#fa5151;font-size:15px;font-family:inherit">删除该好友</button></div>' : '');
     document.getElementById("contactDetail").classList.add("active");
     document.getElementById("detailSendMsg").addEventListener("click", function() {
@@ -4272,6 +4273,19 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       editBtn.addEventListener("click", function() {
         var p = personas.find(function(x) { return x.id === c.id; }) || c;
         openPersonaForm(p);
+      });
+    }
+    var momentBtn = document.getElementById("detailTriggerMoment");
+    if (momentBtn) {
+      momentBtn.addEventListener("click", function() {
+        var p = personas.find(function(x) { return x.id === c.id; });
+        if (!p) { showToast("找不到该角色"); return; }
+        momentBtn.disabled = true;
+        momentBtn.textContent = "正在发布...";
+        personaPost(p);
+        closeContactDetail();
+        switchTab("moments");
+        showToast(p.name + " 发了一条朋友圈");
       });
     }
   }
