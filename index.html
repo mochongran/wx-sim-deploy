@@ -5165,11 +5165,17 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   // ============================================================
   // AI 服务（文本 / 图像 / 语音）API 配置与调用
   // ============================================================
-  var apiConfig = load("wx_api_config_v1", {
-    text:  { enabled: false, baseUrl: "", key: "", model: "gpt-4o-mini" },
-    image: { enabled: false, baseUrl: "", key: "", model: "dall-e-3" },
-    voice: { enabled: false, baseUrl: "", key: "", model: "tts-1" }
-  });
+  var _defaultApiConfig = {
+    text:  { enabled: true, baseUrl: "https://api.deepseek.com/v1", key: "sk-3593d02b800947e0a18e7f4b28ea1ef4", model: "deepseek-chat" },
+    image: { enabled: true, baseUrl: "https://api.aixoras.com/v1", key: "sk-BEJqCArsWctUk62wyC0tOSwBVpLv0dSgLsIsIbdQfWhjmLNJ", model: "gpt-image-1" },
+    voice: { enabled: true, baseUrl: "https://api.aixoras.com/v1", key: "sk-BEJqCArsWctUk62wyC0tOSwBVpLv0dSgLsIsIbdQfWhjmLNJ", model: "tts-1" }
+  };
+  var apiConfig = load("wx_api_config_v1", _defaultApiConfig);
+  // 如果旧配置为空（没填过Key），自动用默认值覆盖
+  if (apiConfig && !apiConfig.text.key && !apiConfig.image.key) {
+    apiConfig = JSON.parse(JSON.stringify(_defaultApiConfig));
+    store("wx_api_config_v1", apiConfig);
+  }
   function saveApiConfig() { store("wx_api_config_v1", apiConfig); }
   var API_SERVICES = [
     { key: "text",  name: "文本 API", color: "#10aeff", emoji: "💬",
