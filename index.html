@@ -5200,12 +5200,17 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   var _defaultApiConfig = {
     text:  { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "deepseek-v4-flash" },
     image: { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "gpt-image-2" },
-    voice: { enabled: true, baseUrl: "https://api.aixoras.com/v1", key: "sk-BEJqCArsWctUk62wyC0tOSwBVpLv0dSgLsIsIbdQfWhjmLNJ", model: "tts-1" }
+    voice: { enabled: true, baseUrl: "https://api.volink.org/v1", key: "99cxiCdbBN6a697bdf94343c442818f4b8I33qM2rkkD", model: "tts-1", voiceId: "6a55b6dfa12dc97f25dd871d" }
   };
   var apiConfig = load("wx_api_config_v1", _defaultApiConfig);
   // 如果旧配置为空（没填过Key），自动用默认值覆盖
   if (apiConfig && !apiConfig.text.key && !apiConfig.image.key) {
     apiConfig = JSON.parse(JSON.stringify(_defaultApiConfig));
+    store("wx_api_config_v1", apiConfig);
+  }
+  // 迁移旧 aixoras 语音配置到 volink
+  if (apiConfig && apiConfig.voice && apiConfig.voice.baseUrl && apiConfig.voice.baseUrl.indexOf("aixoras") !== -1) {
+    apiConfig.voice = JSON.parse(JSON.stringify(_defaultApiConfig.voice));
     store("wx_api_config_v1", apiConfig);
   }
   function saveApiConfig() { store("wx_api_config_v1", apiConfig); }
@@ -5244,6 +5249,8 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
             '<span class="api-key-eye" data-eye="' + svc.key + '">👁</span></div></div>' +
           '<div class="api-field"><div class="api-field-label">模型 (Model)</div>' +
             '<input class="api-input" data-api="' + svc.key + '" data-k="model" value="' + escapeHtml(cfg.model) + '" placeholder="' + svc.modelPh + '"></div>' +
+          (svc.key === "voice" ? '<div class="api-field"><div class="api-field-label">语音 ID (Voice ID)</div>' +
+            '<input class="api-input" data-api="voice" data-k="voiceId" value="' + escapeHtml(cfg.voiceId || "") + '" placeholder="如 6a55b6dfa12dc97f25dd871d"></div>' : '') +
         '</div>' +
       '</div>';
     }).join("") +
@@ -6263,7 +6270,7 @@ function callTtsApi(text) {
     headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
     body: JSON.stringify({
       model: cfg.model || "tts-1",
-      voice: "alloy",
+      voice: cfg.voiceId || "alloy",
       input: String(text || "").slice(0, 600),
       response_format: "mp3"
     })
