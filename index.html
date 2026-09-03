@@ -742,8 +742,9 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
 .call-status { font-size: 15px; color: rgba(255,255,255,0.75); margin-top: 10px; }
 .call-timer { font-size: 15px; color: rgba(255,255,255,0.9); margin-top: 10px; font-variant-numeric: tabular-nums; }
 .call-controls {
-  position: relative; z-index: 2; width: 100%; max-width: 360px;
-  display: flex; justify-content: space-around; padding: 0 30px 60px;
+  position: relative; z-index: 2; width: 100%; max-width: 360px; box-sizing: border-box;
+  display: flex; flex-wrap: wrap; justify-content: space-evenly; align-items: flex-end;
+  gap: 12px 0; padding: 0 16px 60px;
 }
 .call-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: none; color: #fff; }
 .call-btn-circle {
@@ -3040,54 +3041,15 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   }
 
   // ── 聊天数据 ──
-  var chats = [
-    { id: 1, name: "林深", avatar: "https://i.pravatar.cc/100?img=12", lastMsg: "雨停了，出来走走吗", time: "晚上 10:32", unread: 2, muted: false },
-    { id: 2, name: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33", lastMsg: "[图片]", time: "晚上 9:48", unread: 0, muted: false },
-    { id: 3, name: "家庭群", avatar: "https://i.pravatar.cc/100?img=60", lastMsg: "妈妈: 记得吃饭", time: "晚上 8:15", unread: 5, muted: false, isGroup: true },
-    { id: 4, name: "苏晚", avatar: "https://i.pravatar.cc/100?img=45", lastMsg: "那本书我看完了，借你", time: "下午 5:22", unread: 0, muted: true },
-    { id: 5, name: "文件传输助手", avatar: "https://i.pravatar.cc/100?img=8", lastMsg: "项目方案 v3.docx", time: "下午 3:10", unread: 0, muted: false },
-    { id: 6, name: "陈默", avatar: "https://i.pravatar.cc/100?img=51", lastMsg: "明天早上七点老地方", time: "下午 1:45", unread: 1, muted: false },
-    { id: 7, name: "小鹿", avatar: "https://i.pravatar.cc/100?img=20", lastMsg: "豆子链接私你了", time: "中午 12:30", unread: 0, muted: false },
-    { id: 8, name: "周末徒步群", avatar: "https://i.pravatar.cc/100?img=15", lastMsg: "阿泽: 这周天气不错", time: "上午 10:20", unread: 12, muted: true, isGroup: true },
-    { id: 9, name: "微信支付", avatar: "https://i.pravatar.cc/100?img=7", lastMsg: "微信支付凭证", time: "昨天", unread: 0, muted: false },
-    { id: 10, name: "微信运动", avatar: "https://i.pravatar.cc/100?img=9", lastMsg: "今日步数 8,642", time: "昨天", unread: 0, muted: false },
-    { id: 11, name: "阿泽", avatar: "https://i.pravatar.cc/100?img=14", lastMsg: "收到，谢了", time: "昨天", unread: 0, muted: false },
-    { id: 12, name: "订阅号消息", avatar: "https://i.pravatar.cc/100?img=5", lastMsg: "三联生活周刊: 雨夜读书指南", time: "星期二", unread: 0, muted: false }
-  ];
+  var chats = [];
 
   var hiddenChats = {};
 
   // ── 聊天消息数据 ──
-  var messages = {
-    1: [
-      { from: "other", text: "在吗", time: "晚上 10:15" },
-      { from: "me", text: "在的，怎么了" },
-      { from: "other", text: "外面雨停了" },
-      { from: "other", text: "出来走走吗，河边步道没人" },
-      { from: "me", text: "好，等我换件衣服" },
-      { from: "other", text: "我在老地方等你" }
-    ],
-    2: [
-      { from: "other", text: "今晚便利店关东煮不错", time: "晚上 9:30" },
-      { from: "me", text: "你又半夜跑出去" },
-      { from: "other", text: "[图片]", time: "晚上 9:48" }
-    ],
-    6: [
-      { from: "other", text: "明天早上七点老地方", time: "下午 1:45" },
-      { from: "me", text: "好，还是那条路线？" },
-      { from: "other", text: "嗯，沿河跑到桥那边折返" }
-    ]
-  };
+  var messages = {};
 
   // ── 联系人数据 ──
-  var contacts = [
-    { letter: "A", name: "阿泽", avatar: "https://i.pravatar.cc/100?img=14", wechat: "aze_2024" },
-    { letter: "C", name: "陈默", avatar: "https://i.pravatar.cc/100?img=51", wechat: "chenmo_run" },
-    { letter: "I", name: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33", wechat: "ike_night" },
-    { letter: "L", name: "林深", avatar: "https://i.pravatar.cc/100?img=12", wechat: "linshen_rain" },
-    { letter: "S", name: "苏晚", avatar: "https://i.pravatar.cc/100?img=45", wechat: "suwan_book" },
-    { letter: "X", name: "小鹿", avatar: "https://i.pravatar.cc/100?img=20", wechat: "xiaolu_coffee" }
-  ];
+  var contacts = [];
 
   var specialContacts = [
     { name: "新的朋友", color: "#fa9d3b", icon: "person-add" },
@@ -3098,55 +3060,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   ];
 
   // ── 朋友圈数据 ──
-  var seedPosts = [
-    {
-      id: 1, author: "林深", avatar: "https://i.pravatar.cc/100?img=12",
-      text: "外面雨下得很大，玻璃上全是水痕，很安静。适合听一张老唱片，什么都不做。",
-      images: ["https://picsum.photos/seed/rain1/400/400","https://picsum.photos/seed/rain2/400/400","https://picsum.photos/seed/rain3/400/400"],
-      time: "2小时前", likes: ["Ike Okunera", "苏晚", "陈默"],
-      comments: [
-        { author: "苏晚", text: "这种天气最适合窝在家里看书了" },
-        { author: "陈默", replyTo: "林深", text: "上次借你的伞记得还我" }
-      ],
-      liked: false
-    },
-    {
-      id: 2, author: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33",
-      text: "深夜的便利店里，关东煮冒着热气，店员在打哈欠。城市睡着的时候，总有人醒着。",
-      images: ["https://picsum.photos/seed/night1/600/400"],
-      time: "5小时前", likes: ["林深", "雨窗"],
-      comments: [{ author: "雨窗", text: "你又熬夜了" }],
-      liked: true
-    },
-    {
-      id: 3, author: "苏晚", avatar: "https://i.pravatar.cc/100?img=45",
-      text: "今天搬家，收拾出一整箱旧信。有些字迹已经晕开了，但读起来还是会笑。原来那些以为忘记的事，纸都替我记着。",
-      images: ["https://picsum.photos/seed/l1/300/300","https://picsum.photos/seed/l2/300/300","https://picsum.photos/seed/l3/300/300","https://picsum.photos/seed/l4/300/300","https://picsum.photos/seed/l5/300/300","https://picsum.photos/seed/l6/300/300","https://picsum.photos/seed/l7/300/300","https://picsum.photos/seed/l8/300/300","https://picsum.photos/seed/l9/300/300"],
-      time: "昨天", likes: ["林深", "Ike Okunera", "陈默", "小鹿", "阿泽"],
-      comments: [
-        { author: "小鹿", text: "纸短情长" },
-        { author: "阿泽", replyTo: "苏晚", text: "搬家辛苦了，需要帮忙说一声" },
-        { author: "陈默", text: "旧信是时间的标本" }
-      ],
-      liked: false
-    },
-    {
-      id: 4, author: "陈默", avatar: "https://i.pravatar.cc/100?img=51",
-      text: "跑完十公里，雨刚好停了。空气里有泥土和青草的味道，这是一天中最清醒的时刻。",
-      images: [], time: "昨天", likes: ["雨窗", "林深"], comments: [], liked: false
-    },
-    {
-      id: 5, author: "小鹿", avatar: "https://i.pravatar.cc/100?img=20",
-      text: "新入的手冲壶，试了耶加雪菲。花果香很干净，尾韵有一点柑橘的甜。下雨天喝咖啡，仪式感拉满。",
-      images: ["https://picsum.photos/seed/coffee1/400/400","https://picsum.photos/seed/coffee2/400/400"],
-      time: "2天前", likes: ["苏晚", "雨窗", "Ike Okunera"],
-      comments: [
-        { author: "Ike Okunera", text: "豆子哪家的？求链接" },
-        { author: "小鹿", replyTo: "Ike Okunera", text: "私你了" }
-      ],
-      liked: false
-    }
-  ];
+  var seedPosts = [];
   // 朋友圈数据持久化；imagePrompts 为待生成配图提示词（最多 3 个）
   var posts = load("wx_posts_v1", null) || seedPosts;
   function savePosts() { try { store("wx_posts_v1", posts); } catch (e) {} }
@@ -7017,7 +6931,7 @@ function setupCallTranscriptUI() {
   if (box) box.remove();
   box = document.createElement("div");
   box.id = "callReplyBox";
-  box.style.cssText = "position:absolute;left:0;right:0;bottom:calc(96px + var(--safe-bottom));z-index:8;padding:0 14px;display:none;flex-direction:column;gap:8px;transition:transform 0.25s ease,opacity 0.2s ease;transform:translateY(20px);opacity:0";
+  box.style.cssText = "position:absolute;left:0;right:0;bottom:calc(160px + var(--safe-bottom,0px));z-index:8;padding:0 14px;display:none;flex-direction:column;gap:8px;transition:transform 0.25s ease,opacity 0.2s ease;transform:translateY(20px);opacity:0";
   box.innerHTML =
     '<div id="callQuickReplies" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch"></div>' +
     '<div style="display:flex;gap:8px;align-items:center">' +
@@ -8484,21 +8398,30 @@ pushMyMessage = function(msgObj, preview) {
 scheduleReply = function(chat, userText) {
   if (!chat || chat.isService) return;
   var cid = chat.id;
+  var typingShown = false;
+  // 先显示 typing
   setTimeout(function() {
     if (!messages[cid]) return;
     messages[cid].push({ from: "other", typing: true });
+    typingShown = true;
     renderMessages(cid);
     var box = document.getElementById("chatMessages");
-    box.scrollTop = box.scrollHeight;
+    if (box) box.scrollTop = box.scrollHeight;
   }, 700);
+  // 延迟后调用 AI API
   setTimeout(function() {
+    // 移除 typing
     if (!messages[cid]) return;
     for (var i = messages[cid].length - 1; i >= 0; i--) {
       if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
     }
+    typingShown = false;
     var sys = personaSystemPrompt(chat, "对话要连贯，记住之前聊过的内容。");
     callTextApi(sys, userText).then(function(reply) {
-      reply = reply || generateReply(userText, chat);
+      if (!messages[cid]) return;
+      // 如果 API 失败，降级到本地模板
+      if (!reply) reply = generateReply(userText, chat);
+      if (!reply || !String(reply).trim()) reply = "嗯";
       reply = String(reply).slice(0, 200);
       incomingMessage(chat, { from: "other", text: reply });
       // 表情包随机跟随
@@ -8512,6 +8435,12 @@ scheduleReply = function(chat, userText) {
       if (chat.isPersona && Math.random() < 0.08) {
         setTimeout(function() { personaMaybeSendGift(chat); }, 4000 + Math.random() * 6000);
       }
+    }).catch(function(err) {
+      console.warn("API 调用失败:", err);
+      if (!messages[cid]) return;
+      var fallback = generateReply(userText, chat);
+      if (!fallback || !String(fallback).trim()) fallback = "嗯";
+      incomingMessage(chat, { from: "other", text: fallback });
     });
   }, 1200 + Math.random() * 1000);
 };
