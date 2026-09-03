@@ -1920,6 +1920,8 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
 }
 .api-save-btn:active { opacity: 0.85; }
 .api-tip { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.7; padding: 0 24px 30px; }
+.moment-chip { padding:6px 14px; border:1px solid #ddd; border-radius:16px; background:#fff; font-size:13px; color:#666; font-family:inherit; cursor:pointer; transition:all .15s; }
+.moment-chip.active { background:#07c160; color:#fff; border-color:#07c160; }
 
 /* ============================================================
    表情包面板 & 管理页
@@ -3014,7 +3016,8 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     wechat: "yuchuang_2024",
     region: "浙江 杭州",
     signature: "听风听雨过清明",
-    gender: "male"
+    gender: "male",
+    persona: ""
   });
   if (!me.cover) me.cover = DEFAULT_COVER; // 兼容旧存档
   function saveMe() { try { store("wx_me_v1", me); } catch (e) {} }
@@ -3557,46 +3560,109 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   }
 
   // ── 模拟"正在输入"+ 回复（人设感知） ──
+  var typingHeaderEl = null;
+  function showTypingHeader(show) {
+    if (!typingHeaderEl) {
+      typingHeaderEl = document.createElement("div");
+      typingHeaderEl.id = "typingHeader";
+      typingHeaderEl.style.cssText = "display:none;padding:6px 16px 2px;font-size:12px;color:#b0b0b0;text-align:left";
+      var box = document.getElementById("chatMessages");
+      if (box && box.parentNode) box.parentNode.insertBefore(typingHeaderEl, box);
+    }
+    typingHeaderEl.textContent = "对方正在输入…";
+    typingHeaderEl.style.display = show ? "block" : "none";
+  }
+
   function scheduleReply(chat, userText) {
     if (!chat || chat.isService) return;
     var cid = chat.id;
+    var isPersonaChat = chat.isPersona || chat.persona;
     setTimeout(function() {
       if (!messages[cid]) return;
       messages[cid].push({ from: "other", typing: true });
+      showTypingHeader(true);
       renderMessages(cid);
       var box = document.getElementById("chatMessages");
       box.scrollTop = box.scrollHeight;
     }, 700);
-    setTimeout(function() {
-      if (!messages[cid]) return;
-      // 移除 typing
-      for (var i = messages[cid].length - 1; i >= 0; i--) {
-        if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
-      }
-      var reply = generateReply(userText, chat);
-      messages[cid].push({ from: "other", text: reply });
-      var target = chats.find(function(c) { return c.id === cid; });
-      if (target) { target.lastMsg = reply; target.time = "刚刚"; }
-      renderMessages(cid);
-      renderChats();
-      var box = document.getElementById("chatMessages");
-      box.scrollTop = box.scrollHeight;
-      // 角色根据上下文自动回一个表情包
-      if (stickerStore.autoReply) {
-        var st = pickStickerForContext(userText, reply);
-        if (st) {
-          setTimeout(function() {
-            if (!messages[cid]) return;
-            messages[cid].push({ from: "other", type: "sticker", url: st.url || "", emoji: st.emoji || "", stickerName: st.name || "" });
-            var t2 = chats.find(function(c) { return c.id === cid; });
-            if (t2) { t2.lastMsg = "[表情]"; t2.time = "刚刚"; }
-            renderMessages(cid); renderChats();
-            var b2 = document.getElementById("chatMessages");
-            b2.scrollTop = b2.scrollHeight;
-          }, 900);
+    if (isPersonaChat && callTextApi) {
+      // 真正调 AI API
+      callTextApi(personaSystemPrompt(chat, ""), userText).then(function(reply) {
+        if (!messages[cid]) return;
+        // 移除 typing
+        for (var i = messages[cid].length - 1; i >= 0; i--) {
+          if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
         }
-      }
-    }, 1800 + Math.random() * 1200);
+        showTypingHeader(false);
+        var finalReply = reply || generateReply(userText, chat);
+        messages[cid].push({ from: "other", text: finalReply });
+        var target = chats.find(function(c) { return c.id === cid; });
+        if (target) { target.lastMsg = finalReply; target.time = "刚刚"; }
+        renderMessages(cid);
+        renderChats();
+        var box = document.getElementById("chatMessages");
+        box.scrollTop = box.scrollHeight;
+        // 自动回表情包
+        if (stickerStore.autoReply) {
+          var st = pickStickerForContext(userText, finalReply);
+          if (st) {
+            setTimeout(function() {
+              if (!messages[cid]) return;
+              messages[cid].push({ from: "other", type: "sticker", url: st.url || "", emoji: st.emoji || "", stickerName: st.name || "" });
+              var t2 = chats.find(function(c) { return c.id === cid; });
+              if (t2) { t2.lastMsg = "[表情]"; t2.time = "刚刚"; }
+              renderMessages(cid); renderChats();
+              var b2 = document.getElementById("chatMessages");
+              b2.scrollTop = b2.scrollHeight;
+            }, 900);
+          }
+        }
+      }).catch(function() {
+        if (!messages[cid]) return;
+        for (var i = messages[cid].length - 1; i >= 0; i--) {
+          if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
+        }
+        showTypingHeader(false);
+        var fallback = generateReply(userText, chat);
+        messages[cid].push({ from: "other", text: fallback });
+        var target = chats.find(function(c) { return c.id === cid; });
+        if (target) { target.lastMsg = fallback; target.time = "刚刚"; }
+        renderMessages(cid); renderChats();
+        var box = document.getElementById("chatMessages");
+        box.scrollTop = box.scrollHeight;
+      });
+    } else {
+      // 非人设聊天，用模板回复
+      setTimeout(function() {
+        if (!messages[cid]) return;
+        for (var i = messages[cid].length - 1; i >= 0; i--) {
+          if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
+        }
+        showTypingHeader(false);
+        var reply = generateReply(userText, chat);
+        messages[cid].push({ from: "other", text: reply });
+        var target = chats.find(function(c) { return c.id === cid; });
+        if (target) { target.lastMsg = reply; target.time = "刚刚"; }
+        renderMessages(cid);
+        renderChats();
+        var box = document.getElementById("chatMessages");
+        box.scrollTop = box.scrollHeight;
+        if (stickerStore.autoReply) {
+          var st = pickStickerForContext(userText, reply);
+          if (st) {
+            setTimeout(function() {
+              if (!messages[cid]) return;
+              messages[cid].push({ from: "other", type: "sticker", url: st.url || "", emoji: st.emoji || "", stickerName: st.name || "" });
+              var t2 = chats.find(function(c) { return c.id === cid; });
+              if (t2) { t2.lastMsg = "[表情]"; t2.time = "刚刚"; }
+              renderMessages(cid); renderChats();
+              var b2 = document.getElementById("chatMessages");
+              b2.scrollTop = b2.scrollHeight;
+            }, 900);
+          }
+        }
+      }, 1800 + Math.random() * 1200);
+    }
   }
 
   // ── 人设感知回复生成 ──
@@ -4192,9 +4258,21 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   var personaSchedule = load("wx_persona_schedule_v1", {});
   function saveSchedule() { try { store("wx_persona_schedule_v1", personaSchedule); } catch (e) {} }
   var MOMENT_TICK_MS = 30 * 1000;
-  var MOMENT_FIRST_DELAY = 40 * 1000;                       // 首个角色首条动态：约 40 秒后（便于演示）
-  var MOMENT_INTERVAL_MIN = 2.5 * 3600 * 1000;             // 之后每隔 2.5~3.5 小时发一条
-  var MOMENT_INTERVAL_MAX = 3.5 * 3600 * 1000;
+  var MOMENT_FIRST_DELAY = 40 * 1000;
+  // 朋友圈发动态间隔（可从设置中调整，默认2.5~3.5小时）
+  var MOMENT_OPTIONS = [
+    { label: "30分钟", min: 25*60*1000, max: 35*60*1000 },
+    { label: "1小时",  min: 50*60*1000, max: 70*60*1000 },
+    { label: "2小时",  min: 1.8*3600*1000, max: 2.2*3600*1000 },
+    { label: "3小时",  min: 2.5*3600*1000, max: 3.5*3600*1000 },
+    { label: "5小时",  min: 4.5*3600*1000, max: 5.5*3600*1000 },
+    { label: "8小时",  min: 7*3600*1000, max: 9*3600*1000 },
+    { label: "12小时", min: 11*3600*1000, max: 13*3600*1000 }
+  ];
+  var _momentIdx = parseInt(localStorage.getItem("wx_moment_interval_v1")) || 3;
+  if (_momentIdx < 0 || _momentIdx >= MOMENT_OPTIONS.length) _momentIdx = 3;
+  var MOMENT_INTERVAL_MIN = MOMENT_OPTIONS[_momentIdx].min;
+  var MOMENT_INTERVAL_MAX = MOMENT_OPTIONS[_momentIdx].max;
   function schedulePersonaFirst(personaId) {
     if (personaSchedule[personaId]) return;
     personaSchedule[personaId] = Date.now() + MOMENT_FIRST_DELAY;
@@ -4234,7 +4312,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     document.getElementById("detailBody").innerHTML =
       '<div class="detail-header">' +
         '<img class="detail-avatar" src="'+c.avatar+'" alt="">' +
-        '<div><div class="detail-name">'+escapeHtml(c.name)+(c.isPersona?'<span class="persona-badge">AI 好友</span>':'')+'</div>' +
+        '<div><div class="detail-name">'+escapeHtml(c.name)+'</div>' +
         '<div class="detail-wechat">微信号: '+escapeHtml(c.wechat||"")+'</div></div>' +
       '</div>' +
       '<div class="list-group" style="margin-top:8px">' +
@@ -4813,6 +4891,11 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
           '<span class="list-desc" style="margin:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(me.signature||"")+'</span>' +
           iconSvg("chevron-right",18,"#c8c8c8") +
         '</div>' +
+        '<div class="list-item no-indent" data-field="persona" style="cursor:pointer">' +
+          '<div class="list-content"><span class="list-title">我的人设</span></div>' +
+          '<span class="list-desc" style="margin:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(me.persona ? escapeHtml(me.persona.slice(0,30)) : '未设置')+'</span>' +
+          iconSvg("chevron-right",18,"#c8c8c8") +
+        '</div>' +
       '</div>' +
       '<div class="list-group">' +
         '<div class="list-item no-indent">' +
@@ -4871,6 +4954,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     wechat:    { title: "微信号",   type: "input",    max: 30,  placeholder: "请输入微信号" },
     region:    { title: "地区",     type: "input",    max: 30,  placeholder: "例如：浙江 杭州" },
     signature: { title: "个性签名", type: "textarea", max: 50,  placeholder: "写一句签名吧" },
+    persona:   { title: "我的人设", type: "textarea", max: 2000, placeholder: "告诉 AI 好友你是谁。例如：洛无辛，20岁，自由摄影师，性格安静内敛，不喜欢被追问行踪，喜欢深夜工作。" },
     gender:    { title: "性别",     type: "gender" }
   };
   var fieldEditing = null;
@@ -5208,11 +5292,18 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     apiConfig = JSON.parse(JSON.stringify(_defaultApiConfig));
     store("wx_api_config_v1", apiConfig);
   }
-  // 迁移旧 aixoras 语音配置到 volink
-  if (apiConfig && apiConfig.voice && apiConfig.voice.baseUrl && apiConfig.voice.baseUrl.indexOf("aixoras") !== -1) {
-    apiConfig.voice = JSON.parse(JSON.stringify(_defaultApiConfig.voice));
-    store("wx_api_config_v1", apiConfig);
+  // 强制覆盖已失效的旧 API 配置
+  var _needSave = false;
+  if (apiConfig.text && apiConfig.text.baseUrl && apiConfig.text.baseUrl.indexOf("deepseek.com") !== -1) {
+    apiConfig.text = JSON.parse(JSON.stringify(_defaultApiConfig.text)); _needSave = true;
   }
+  if (apiConfig.image && apiConfig.image.baseUrl && apiConfig.image.baseUrl.indexOf("aixoras") !== -1) {
+    apiConfig.image = JSON.parse(JSON.stringify(_defaultApiConfig.image)); _needSave = true;
+  }
+  if (apiConfig.voice && apiConfig.voice.baseUrl && apiConfig.voice.baseUrl.indexOf("aixoras") !== -1) {
+    apiConfig.voice = JSON.parse(JSON.stringify(_defaultApiConfig.voice)); _needSave = true;
+  }
+  if (_needSave) store("wx_api_config_v1", apiConfig);
   function saveApiConfig() { store("wx_api_config_v1", apiConfig); }
   var API_SERVICES = [
     { key: "text",  name: "文本 API", color: "#10aeff", emoji: "💬",
@@ -5255,7 +5346,13 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       '</div>';
     }).join("") +
     '<div class="api-save-row"><button class="api-save-btn" id="apiSaveBtn">保存配置</button></div>' +
-    '<div class="api-tip">兼容 OpenAI 接口格式：<br>文本 /v1/chat/completions · 图像 /v1/images/generations<br>未配置或调用失败时，自动使用本地模拟生成，不影响使用</div>';
+    '<div class="api-tip">兼容 OpenAI 接口格式：<br>文本 /v1/chat/completions · 图像 /v1/images/generations<br>未配置或调用失败时，自动使用本地模拟生成，不影响使用</div>' +
+    '<div style="padding:16px 24px 8px"><div style="font-size:14px;font-weight:500;color:#333;margin-bottom:8px">朋友圈发动态间隔</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px" id="momentIntervalChips">' +
+    MOMENT_OPTIONS.map(function(opt, idx) {
+      return '<button data-midx="'+idx+'" class="moment-chip'+(idx===_momentIdx?' active':'')+'">'+opt.label+'</button>';
+    }).join("") +
+    '</div><div style="font-size:11px;color:var(--muted);margin-top:8px">选择角色自动发朋友圈的时间间隔</div></div>';
 
     // 开关
     body.querySelectorAll("[data-api-toggle]").forEach(function(t) {
@@ -5282,6 +5379,20 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       });
       saveApiConfig();
       showToast("AI 服务配置已保存");
+    });
+    // 朋友圈间隔选择
+    var chips = body.querySelectorAll("[data-midx]");
+    chips.forEach(function(chip) {
+      chip.addEventListener("click", function() {
+        var idx = parseInt(this.dataset.midx);
+        localStorage.setItem("wx_moment_interval_v1", String(idx));
+        _momentIdx = idx;
+        MOMENT_INTERVAL_MIN = MOMENT_OPTIONS[idx].min;
+        MOMENT_INTERVAL_MAX = MOMENT_OPTIONS[idx].max;
+        chips.forEach(function(c) { c.classList.remove("active"); });
+        this.classList.add("active");
+        showToast("朋友圈间隔已设为 " + MOMENT_OPTIONS[idx].label);
+      });
     });
   }
 
@@ -5550,13 +5661,14 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       '</div>' +
       '<div class="form-group">' +
         '<div style="padding:14px 16px 6px;font-size:13px;color:var(--muted)">人设描述（决定 TA 的说话风格）</div>' +
-        '<div style="padding:0 16px 14px"><textarea id="pfPersona" class="form-textarea" style="border:none;min-height:90px;padding:0" placeholder="例如：温柔治愈的女生，喜欢读书和咖啡，说话慢条斯理，总会鼓励你..."></textarea></div>' +
+        '<div style="padding:0 16px 14px"><textarea id="pfPersona" class="form-textarea" style="border:none;min-height:200px;padding:0" placeholder="基础信息\n- 姓名：\n- 性别：\n- 年龄：\n- 职业：\n- 现居地：\n\n外貌细节\n- 发型：\n- 眼睛：\n- 服装习惯：\n\n性格核心\n- 表面：\n- 内核：\n- 幽默方式：\n- 情感表达：\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 以日常生活分享、互损、推拉为主"></textarea></div>' +
       '</div>' +
       '<div class="persona-quick" id="pfQuick">' +
         ['温柔治愈','幽默搞笑','高冷少言','可爱元气','成熟稳重','文艺安静'].map(function(t){
           return '<button class="persona-quick-tag" data-t="'+t+'">'+t+'</button>';
         }).join("") +
       '</div>' +
+      '<div style="padding:0 16px 8px"><button id="pfAiFill" style="width:100%;padding:12px;background:#07c160;border:0;border-radius:8px;color:#fff;font-size:14px;font-family:inherit;cursor:pointer">AI 帮我填人设</button></div>' +
       '<div style="padding:24px 16px"><button id="pfSave" class="detail-action-btn primary" style="width:100%;justify-content:center;padding:13px">' + (isEdit ? "保存修改" : "完成创建") + '</button></div>';
 
     var nameInput = document.getElementById("pfName");
@@ -5701,6 +5813,36 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       tag.addEventListener("click", function() {
         var ta = document.getElementById("pfPersona");
         ta.value = ta.value ? ta.value + "，" + this.dataset.t : "性格" + this.dataset.t + "。";
+      });
+    });
+
+    // ── AI 帮我填人设 ──
+    document.getElementById("pfAiFill").addEventListener("click", function() {
+      var btn = this;
+      var pName = document.getElementById("pfName").value.trim() || "对方";
+      var pGender = document.getElementById("pfGender").value === "male" ? "男" : "女";
+      var pAppearance = document.getElementById("pfAppearance").value.trim() || "";
+      var ta = document.getElementById("pfPersona");
+      btn.textContent = "正在生成…";
+      btn.disabled = true;
+      btn.style.opacity = "0.6";
+      var sysPrompt = "你是一个角色扮演游戏设定师。根据以下信息，生成一份详细的微信聊天角色人设。格式参考：\n\n基础信息（姓名、性别、年龄、职业、现居地、感情状态）\n外貌细节（发型、眼睛、耳饰、服装习惯、其他特征）\n性格核心（表面性格、内核、幽默方式、情感表达、冲突处理）\n补充经历（家庭背景、过去的感情经历、和「我」的故事、日常习惯）\n语言与聊天风格（完全模拟微信对话；每次只回复一句纯对话内容；每句15字以内；不出现任何括号/动作/神态/表情描述；不说长篇大论；以日常生活分享、互损、推拉为主；可以玩梗、冷幽默、偶尔脏话、阴阳怪气，但整体自然）\n\n要求：内容立体、有生活感、像真人。直接输出人设文本，不要加标题。";
+      var userMsg = "角色名：" + pName + "，性别：" + pGender + (pAppearance ? "，外貌：" + pAppearance : "");
+      callTextApi(sysPrompt, userMsg).then(function(reply) {
+        btn.textContent = "AI 帮我填人设";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        if (reply) {
+          ta.value = reply;
+          showToast("人设已生成");
+        } else {
+          showToast("生成失败，请重试");
+        }
+      }).catch(function() {
+        btn.textContent = "AI 帮我填人设";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        showToast("生成失败，请重试");
       });
     });
 
@@ -6334,7 +6476,10 @@ function personaSystemPrompt(chat, extra) {
   var p = "";
   if (chat && chat.persona) p = chat.persona;
   var name = chat ? chat.name : "对方";
-  return "你正在微信里和朋友" + me.name + "聊天，你是「" + name + "」。" +
+  var myInfo = "你正在微信里和朋友「" + (me.name || "") + "」聊天";
+  if (me.persona) myInfo += "，对方的人设：" + me.persona;
+  myInfo += "。你是「" + name + "」。";
+  return myInfo +
     (p ? "你的人设：" + p + "。" : "") +
     "请严格模仿这个性格，用微信聊天的口吻说话：口语化、简短（一两句话，不超过50字）、" +
     "可以用语气词，但不要用表情符号emoji，不要加引号，不要分条罗列，直接输出你要说的话。" +
