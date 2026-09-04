@@ -2106,8 +2106,9 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
 }
 .call-vol span { width: 4px; background: #07c160; border-radius: 2px; height: 6px; transition: height 0.1s; }
 .call-subtitle {
-  position: absolute; bottom: 120px; left: 20px; right: 20px; z-index: 6; text-align: center;
+  position: absolute; bottom: 200px; left: 20px; right: 20px; z-index: 6; text-align: center;
   color: rgba(255,255,255,0.95); font-size: 15px; line-height: 1.5; text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  max-height: 80px; overflow-y: auto; padding: 8px 12px; background: rgba(0,0,0,0.25); border-radius: 12px;
 }
 
 /* ============================================================
@@ -2961,15 +2962,32 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   </nav>
 </div>
 
-<!-- 发布弹窗 -->
+<!-- 发布朋友圈 -->
 <div class="modal-overlay" id="publishModal" style="display:none">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-title">发表朋友圈</div>
-    <textarea class="modal-textarea" id="publishText" placeholder="这一刻的想法..."></textarea>
-    <div class="modal-actions">
-      <button class="modal-btn modal-btn-cancel" id="cancelPublish">取消</button>
-      <button class="modal-btn modal-btn-publish" id="confirmPublish">发表</button>
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:0.5px solid var(--rule)">
+      <button id="cancelPublish" style="background:none;border:none;color:var(--link);font-size:15px;font-family:inherit;padding:4px 0">取消</button>
+      <span style="font-size:16px;font-weight:500">发表朋友圈</span>
+      <button id="confirmPublish" style="background:#07c160;border:none;color:#fff;font-size:14px;font-family:inherit;padding:6px 18px;border-radius:4px">发表</button>
+    </div>
+    <textarea class="modal-textarea" id="publishText" placeholder="这一刻的想法..." style="border:none;min-height:120px;font-size:15px;line-height:1.6;resize:none;padding:14px 16px"></textarea>
+    <div id="publishImageGrid" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 8px"></div>
+    <div id="publishAddPhoto" style="padding:0 16px 8px">
+      <label style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:0.5px solid var(--rule);color:var(--link);font-size:14px;cursor:pointer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#576b95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        添加照片
+        <input type="file" id="publishPhotoInput" accept="image/*" multiple class="file-hidden">
+      </label>
+    </div>
+    <div style="padding:4px 16px 16px;border-top:0.5px solid var(--rule)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;color:var(--ink);font-size:14px">
+        <span>所在位置</span>
+        <input id="publishLocation" placeholder="添加位置" style="border:none;background:none;text-align:right;color:var(--muted);font-size:13px;font-family:inherit;width:60%;outline:none">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:0.5px solid var(--rule);color:var(--ink);font-size:14px">
+        <span>谁可以看</span>
+        <span style="color:var(--muted);font-size:13px">公开</span>
+      </div>
     </div>
   </div>
 </div>
@@ -3040,16 +3058,77 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     }
   }
 
+  // ── 预设角色人设 ──
+  var seedPersonas = [
+    { id: "p_linshen", name: "林深", avatar: "https://i.pravatar.cc/100?img=12", wechat: "linshen_rain", gender: "male", region: "浙江 杭州",
+      appearance: "28岁男生，黑色短发微卷，瘦高身材，穿深色棉麻衬衫或白色T恤，气质文艺内敛",
+      persona: "基础信息\n- 姓名：林深\n- 性别：男\n- 年龄：28\n- 职业：独立音乐人/唱片店老板\n- 现居地：杭州老城区\n\n外貌细节\n- 发型：黑色短发微卷，略长\n- 眼睛：细长，眼神安静\n- 服装习惯：深色棉麻、白色T恤、帆布鞋\n\n性格核心\n- 表面：安静寡言，有点距离感\n- 内核：细腻敏感，对美的事物有执念\n- 幽默方式：冷幽默，偶尔一句让人笑出来\n- 情感表达：含蓄，用行动代替语言\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 喜欢聊天气、音乐、散步、读书\n- 语气偏淡，偶尔温柔" },
+    { id: "p_chenmo", name: "陈默", avatar: "https://i.pravatar.cc/100?img=51", wechat: "chenmo_run", gender: "male", region: "浙江 杭州",
+      appearance: "26岁男生，寸头，结实运动身材，小麦色皮肤，常穿运动背心或跑步装备",
+      persona: "基础信息\n- 姓名：陈默\n- 性别：男\n- 年龄：26\n- 职业：健身教练/马拉松跑者\n- 现居地：杭州\n\n外貌细节\n- 发型：寸头\n- 眼睛：圆而亮，精力充沛\n- 服装习惯：运动装、跑鞋、运动手表\n\n性格核心\n- 表面：爽朗直接，话不多但靠谱\n- 内核：自律到极致，对生活有清晰规划\n- 幽默方式：直来直去，偶尔损人\n- 情感表达：用行动表达，不喜欢矫情\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 简短有力，不啰嗦\n- 喜欢聊跑步、健身、早起" },
+    { id: "p_ike", name: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33", wechat: "ike_night", gender: "male", region: "浙江 杭州",
+      appearance: "24岁混血男生，深棕色卷发，五官立体，穿日系街头风，喜欢深色oversize",
+      persona: "基础信息\n- 姓名：Ike Okunera\n- 性别：男\n- 年龄：24\n- 职业：摄影师/自由职业\n- 现居地：杭州\n\n外貌细节\n- 发型：深棕色自然卷发\n- 眼睛：深邃，混血感\n- 服装习惯：日系街头、深色oversize、胶片相机不离手\n\n性格核心\n- 表面：随性散漫，夜猫子\n- 内核：观察力极强，对光影敏感\n- 幽默方式：自嘲式幽默\n- 情感表达：用照片代替语言\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 中英混搭，偶尔蹦英文\n- 喜欢聊深夜、便利店、拍照" },
+    { id: "p_suwan", name: "苏晚", avatar: "https://i.pravatar.cc/100?img=45", wechat: "suwan_book", gender: "female", region: "浙江 杭州",
+      appearance: "25岁女生，黑色长直发，皮肤白皙，穿棉麻长裙或针织开衫，知性文艺",
+      persona: "基础信息\n- 姓名：苏晚\n- 性别：女\n- 年龄：25\n- 职业：出版社编辑\n- 现居地：杭州\n\n外貌细节\n- 发型：黑色长直发，偶尔扎低马尾\n- 眼睛：圆润温柔\n- 服装习惯：棉麻长裙、针织开衫、帆布包\n\n性格核心\n- 表面：温柔安静，书卷气\n- 内核：感性细腻，对文字有执念\n- 幽默方式：文字梗，谐音梗\n- 情感表达：细腻，喜欢写长段话\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 喜欢聊书、搬家、旧物、记忆\n- 语气柔和，偶尔文艺" },
+    { id: "p_xiaolu", name: "小鹿", avatar: "https://i.pravatar.cc/100?img=20", wechat: "xiaolu_coffee", gender: "female", region: "浙江 杭州",
+      appearance: "23岁女生，栗色短发波波头，圆脸大眼，穿清新日系风格",
+      persona: "基础信息\n- 姓名：小鹿\n- 性别：女\n- 年龄：23\n- 职业：咖啡店店主/手冲咖啡师\n- 现居地：杭州\n\n外貌细节\n- 发型：栗色短发波波头\n- 眼睛：圆而大，笑起来弯弯的\n- 服装习惯：日系清新、围裙、帆布鞋\n\n性格核心\n- 表面：元气开朗，话多热情\n- 内核：对生活充满好奇，认真执着\n- 幽默方式：活泼搞怪\n- 情感表达：直接热烈\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 喜欢聊咖啡、烘焙、好物分享\n- 语气活泼，偶尔撒娇" },
+    { id: "p_aze", name: "阿泽", avatar: "https://i.pravatar.cc/100?img=14", wechat: "aze_2024", gender: "male", region: "浙江 杭州",
+      appearance: "27岁男生，黑色短发利落，戴黑框眼镜，穿简约休闲装",
+      persona: "基础信息\n- 姓名：阿泽\n- 性别：男\n- 年龄：27\n- 职业：程序员/户外爱好者\n- 现居地：杭州\n\n外貌细节\n- 发型：黑色短发，整洁利落\n- 眼睛：戴黑框眼镜，眼神专注\n- 服装习惯：简约休闲、格子衫、冲锋衣\n\n性格核心\n- 表面：务实靠谱，话不多\n- 内核：热心肠，喜欢组织活动\n- 幽默方式：冷笑话\n- 情感表达：朴实，做事比说话多\n\n语言与聊天风格\n- 完全模拟微信对话\n- 每次只回复一句纯对话，每句15字以内\n- 不出现任何括号、动作、神态描述\n- 喜欢聊徒步、户外、技术\n- 语气稳重，偶尔幽默" }
+  ];
+
   // ── 聊天数据 ──
-  var chats = [];
+  var chats = [
+    { id: 1, name: "林深", avatar: "https://i.pravatar.cc/100?img=12", lastMsg: "雨停了，出来走走吗", time: "晚上 10:32", unread: 2, muted: false, isPersona: true, contactId: "p_linshen" },
+    { id: 2, name: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33", lastMsg: "[图片]", time: "晚上 9:48", unread: 0, muted: false, isPersona: true, contactId: "p_ike" },
+    { id: 3, name: "家庭群", avatar: "https://i.pravatar.cc/100?img=60", lastMsg: "妈妈: 记得吃饭", time: "晚上 8:15", unread: 5, muted: false, isGroup: true },
+    { id: 4, name: "苏晚", avatar: "https://i.pravatar.cc/100?img=45", lastMsg: "那本书我看完了，借你", time: "下午 5:22", unread: 0, muted: true, isPersona: true, contactId: "p_suwan" },
+    { id: 5, name: "文件传输助手", avatar: "https://i.pravatar.cc/100?img=8", lastMsg: "项目方案 v3.docx", time: "下午 3:10", unread: 0, muted: false },
+    { id: 6, name: "陈默", avatar: "https://i.pravatar.cc/100?img=51", lastMsg: "明天早上七点老地方", time: "下午 1:45", unread: 1, muted: false, isPersona: true, contactId: "p_chenmo" },
+    { id: 7, name: "小鹿", avatar: "https://i.pravatar.cc/100?img=20", lastMsg: "豆子链接私你了", time: "中午 12:30", unread: 0, muted: false, isPersona: true, contactId: "p_xiaolu" },
+    { id: 8, name: "周末徒步群", avatar: "https://i.pravatar.cc/100?img=15", lastMsg: "阿泽: 这周天气不错", time: "上午 10:20", unread: 12, muted: true, isGroup: true },
+    { id: 9, name: "微信支付", avatar: "https://i.pravatar.cc/100?img=7", lastMsg: "微信支付凭证", time: "昨天", unread: 0, muted: false },
+    { id: 10, name: "微信运动", avatar: "https://i.pravatar.cc/100?img=9", lastMsg: "今日步数 8,642", time: "昨天", unread: 0, muted: false },
+    { id: 11, name: "阿泽", avatar: "https://i.pravatar.cc/100?img=14", lastMsg: "收到，谢了", time: "昨天", unread: 0, muted: false, isPersona: true, contactId: "p_aze" },
+    { id: 12, name: "订阅号消息", avatar: "https://i.pravatar.cc/100?img=5", lastMsg: "三联生活周刊: 雨夜读书指南", time: "星期二", unread: 0, muted: false }
+  ];
 
   var hiddenChats = {};
 
   // ── 聊天消息数据 ──
-  var messages = {};
+  var messages = {
+    1: [
+      { from: "other", text: "在吗", time: "晚上 10:15" },
+      { from: "me", text: "在的，怎么了" },
+      { from: "other", text: "外面雨停了" },
+      { from: "other", text: "出来走走吗，河边步道没人" },
+      { from: "me", text: "好，等我换件衣服" },
+      { from: "other", text: "我在老地方等你" }
+    ],
+    2: [
+      { from: "other", text: "今晚便利店关东煮不错", time: "晚上 9:30" },
+      { from: "me", text: "你又半夜跑出去" },
+      { from: "other", text: "[图片]", time: "晚上 9:48" }
+    ],
+    6: [
+      { from: "other", text: "明天早上七点老地方", time: "下午 1:45" },
+      { from: "me", text: "好，还是那条路线？" },
+      { from: "other", text: "嗯，沿河跑到桥那边折返" }
+    ]
+  };
 
   // ── 联系人数据 ──
-  var contacts = [];
+  var contacts = [
+    { letter: "A", name: "阿泽", avatar: "https://i.pravatar.cc/100?img=14", wechat: "aze_2024", isPersona: true, id: "p_aze" },
+    { letter: "C", name: "陈默", avatar: "https://i.pravatar.cc/100?img=51", wechat: "chenmo_run", isPersona: true, id: "p_chenmo" },
+    { letter: "I", name: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33", wechat: "ike_night", isPersona: true, id: "p_ike" },
+    { letter: "L", name: "林深", avatar: "https://i.pravatar.cc/100?img=12", wechat: "linshen_rain", isPersona: true, id: "p_linshen" },
+    { letter: "S", name: "苏晚", avatar: "https://i.pravatar.cc/100?img=45", wechat: "suwan_book", isPersona: true, id: "p_suwan" },
+    { letter: "X", name: "小鹿", avatar: "https://i.pravatar.cc/100?img=20", wechat: "xiaolu_coffee", isPersona: true, id: "p_xiaolu" }
+  ];
 
   var specialContacts = [
     { name: "新的朋友", color: "#fa9d3b", icon: "person-add" },
@@ -3060,7 +3139,55 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   ];
 
   // ── 朋友圈数据 ──
-  var seedPosts = [];
+  var seedPosts = [
+    {
+      id: 1, author: "林深", avatar: "https://i.pravatar.cc/100?img=12",
+      text: "外面雨下得很大，玻璃上全是水痕，很安静。适合听一张老唱片，什么都不做。",
+      images: ["https://picsum.photos/seed/rain1/400/400","https://picsum.photos/seed/rain2/400/400","https://picsum.photos/seed/rain3/400/400"],
+      time: "2小时前", likes: ["Ike Okunera", "苏晚", "陈默"],
+      comments: [
+        { author: "苏晚", text: "这种天气最适合窝在家里看书了" },
+        { author: "陈默", replyTo: "林深", text: "上次借你的伞记得还我" }
+      ],
+      liked: false
+    },
+    {
+      id: 2, author: "Ike Okunera", avatar: "https://i.pravatar.cc/100?img=33",
+      text: "深夜的便利店里，关东煮冒着热气，店员在打哈欠。城市睡着的时候，总有人醒着。",
+      images: ["https://picsum.photos/seed/night1/600/400"],
+      time: "5小时前", likes: ["林深"],
+      comments: [],
+      liked: true
+    },
+    {
+      id: 3, author: "苏晚", avatar: "https://i.pravatar.cc/100?img=45",
+      text: "今天搬家，收拾出一整箱旧信。有些字迹已经晕开了，但读起来还是会笑。原来那些以为忘记的事，纸都替我记着。",
+      images: ["https://picsum.photos/seed/l1/300/300","https://picsum.photos/seed/l2/300/300","https://picsum.photos/seed/l3/300/300","https://picsum.photos/seed/l4/300/300","https://picsum.photos/seed/l5/300/300","https://picsum.photos/seed/l6/300/300","https://picsum.photos/seed/l7/300/300","https://picsum.photos/seed/l8/300/300","https://picsum.photos/seed/l9/300/300"],
+      time: "昨天", likes: ["林深", "Ike Okunera", "陈默", "小鹿", "阿泽"],
+      comments: [
+        { author: "小鹿", text: "纸短情长" },
+        { author: "阿泽", replyTo: "苏晚", text: "搬家辛苦了，需要帮忙说一声" },
+        { author: "陈默", text: "旧信是时间的标本" }
+      ],
+      liked: false
+    },
+    {
+      id: 4, author: "陈默", avatar: "https://i.pravatar.cc/100?img=51",
+      text: "跑完十公里，雨刚好停了。空气里有泥土和青草的味道，这是一天中最清醒的时刻。",
+      images: [], time: "昨天", likes: ["林深"], comments: [], liked: false
+    },
+    {
+      id: 5, author: "小鹿", avatar: "https://i.pravatar.cc/100?img=20",
+      text: "新入的手冲壶，试了耶加雪菲。花果香很干净，尾韵有一点柑橘的甜。下雨天喝咖啡，仪式感拉满。",
+      images: ["https://picsum.photos/seed/coffee1/400/400","https://picsum.photos/seed/coffee2/400/400"],
+      time: "2天前", likes: ["苏晚", "Ike Okunera"],
+      comments: [
+        { author: "Ike Okunera", text: "豆子哪家的？求链接" },
+        { author: "小鹿", replyTo: "Ike Okunera", text: "私你了" }
+      ],
+      liked: false
+    }
+  ];
   // 朋友圈数据持久化；imagePrompts 为待生成配图提示词（最多 3 个）
   var posts = load("wx_posts_v1", null) || seedPosts;
   function savePosts() { try { store("wx_posts_v1", posts); } catch (e) {} }
@@ -3998,9 +4125,12 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     removeActionBar();
     var bar = document.createElement("div");
     bar.className = "action-bar";
+    var isMyPost = (post.author === me.name);
     bar.innerHTML =
       '<button class="action-item '+(post.liked?"liked":"")+'" data-action="like">'+heartSvg(post.liked)+'<span>'+(post.liked?"取消":"赞")+'</span></button>' +
-      '<button class="action-item" data-action="comment">'+iconSvg("chat",14,"#fff")+'<span>评论</span></button>';
+      '<button class="action-item" data-action="comment">'+iconSvg("chat",14,"#fff")+'<span>评论</span></button>' +
+      '<button class="action-item" data-action="share"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>转发</span></button>' +
+      (isMyPost ? '<button class="action-item" data-action="delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>删除</span></button>' : '');
     var meta = postEl.querySelector(".post-meta");
     meta.style.position = "relative";
     meta.appendChild(bar);
@@ -4016,6 +4146,26 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       openCommentInput(post.id);
       removeActionBar();
     });
+    var shareBtn = bar.querySelector('[data-action="share"]');
+    if (shareBtn) shareBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      removeActionBar();
+      showToast("已转发到聊天");
+    });
+    var delBtn = bar.querySelector('[data-action="delete"]');
+    if (delBtn) delBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      removeActionBar();
+      deletePost(post.id);
+    });
+  }
+  function deletePost(postId) {
+    for (var i = posts.length - 1; i >= 0; i--) {
+      if (posts[i].id === postId) { posts.splice(i, 1); break; }
+    }
+    savePosts();
+    renderMoments();
+    showToast("已删除");
   }
 
   function removeActionBar() {
@@ -4068,15 +4218,26 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   function closePublish() {
     document.getElementById("publishModal").style.display = "none";
     document.getElementById("publishText").value = "";
+    _publishImages = [];
+    var grid = document.getElementById("publishImageGrid");
+    if (grid) grid.innerHTML = "";
+    var loc = document.getElementById("publishLocation");
+    if (loc) loc.value = "";
   }
+  var _publishImages = [];
   function submitPublish() {
     var text = document.getElementById("publishText").value.trim();
-    if (!text) return;
+    var location = document.getElementById("publishLocation");
+    var locText = location ? location.value.trim() : "";
+    if (!text && _publishImages.length === 0) return;
+    var postText = text;
+    if (locText) postText += (postText ? "\n" : "") + "📍 " + locText;
     posts.unshift({
       id: Date.now(), author: me.name, avatar: me.avatar,
-      text: text, images: [], imagePrompts: [], time: "刚刚",
+      text: postText, images: _publishImages.slice(), imagePrompts: [], time: "刚刚",
       likes: [], comments: [], liked: false
     });
+    _publishImages = [];
     savePosts();
     renderMoments();
     closePublish();
@@ -4149,24 +4310,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
     posts.unshift(post);
     savePosts();
     renderMoments();
-    // 自动生成配图：逐个调用图像 API，完成后替换 prompt 卡片为真实图片
-    if (imagePrompts.length > 0 && apiConfig.image && apiConfig.image.enabled && apiConfig.image.key) {
-      imagePrompts.forEach(function(prompt, idx) {
-        generateImageSrc(prompt, "1024x1024").then(function(url) {
-          var p = findPost(post.id);
-          if (!p) return;
-          var imgs = p.images || (p.images = []);
-          var prms = p.imagePrompts || (p.imagePrompts = []);
-          // 找到对应 prompt 并移除，加入 images
-          var at = prms.indexOf(prompt);
-          if (at >= 0) prms.splice(at, 1);
-          imgs.push(url || fallbackImageSrc(prompt));
-          if (!url) console.warn("角色动态配图生成失败，使用占位图");
-          savePosts();
-          renderMoments();
-        });
-      });
-    }
+    // 配图提示词存入 imagePrompts，不自动生成图片，用户手动触发生成
   }
 
   var personaSchedule = load("wx_persona_schedule_v1", {});
@@ -4370,6 +4514,46 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   document.getElementById("publishText").addEventListener("keydown", function(e) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitPublish(); }
   });
+  // 发朋友圈照片选择
+  var publishPhotoInput = document.getElementById("publishPhotoInput");
+  if (publishPhotoInput) {
+    publishPhotoInput.addEventListener("change", function() {
+      var files = this.files;
+      if (!files || !files.length) return;
+      var grid = document.getElementById("publishImageGrid");
+      for (var i = 0; i < files.length && _publishImages.length < 9; i++) {
+        (function(file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            readImageFileScaled(file, 800, function(dataUrl) {
+              if (!dataUrl) return;
+              _publishImages.push(dataUrl);
+              renderPublishGrid();
+            });
+          };
+          reader.readAsDataURL(file);
+        })(files[i]);
+      }
+      this.value = "";
+    });
+  }
+  function renderPublishGrid() {
+    var grid = document.getElementById("publishImageGrid");
+    if (!grid) return;
+    grid.innerHTML = _publishImages.map(function(src, i) {
+      return '<div style="position:relative;width:72px;height:72px;border-radius:4px;overflow:hidden">' +
+        '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover">' +
+        '<button data-idx="'+i+'" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer">×</button>' +
+      '</div>';
+    }).join("");
+    grid.querySelectorAll("button").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var idx = parseInt(this.dataset.idx);
+        _publishImages.splice(idx, 1);
+        renderPublishGrid();
+      });
+    });
+  }
 
   document.getElementById("momentsBack").addEventListener("click", closeMoments);
   document.getElementById("detailBack").addEventListener("click", closeContactDetail);
@@ -5161,7 +5345,32 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   }
 
   // ── AI 人设好友 ──
-  var personas = load("wx_personas_v1", []);
+  var _savedPersonas = load("wx_personas_v1", null);
+  // 首次加载时使用预设角色；之后用 localStorage 里的
+  var personas = _savedPersonas || seedPersonas.slice();
+  if (!_savedPersonas) store("wx_personas_v1", personas);
+  // 同步预设角色的人设到 chats/contacts（首次或清除数据后）
+  seedPersonas.forEach(function(sp) {
+    var p = personas.find(function(x) { return x.id === sp.id; });
+    if (!p) { personas.push(sp); p = sp; }
+    // 给 chat 补上 persona 字段
+    chats.forEach(function(c) {
+      if (c.contactId === sp.id && !c.persona) {
+        c.isPersona = true;
+        c.persona = p.persona;
+      }
+    });
+    // 给 contact 补上 persona 字段
+    contacts.forEach(function(c) {
+      if (c.id === sp.id && !c.persona) {
+        c.isPersona = true;
+        c.persona = p.persona;
+        c.appearance = p.appearance;
+        c.gender = p.gender;
+        c.region = p.region;
+      }
+    });
+  });
   function avatarForName(name) {
     var n = 1 + (sceneHash(name) % 68);
     return "https://i.pravatar.cc/100?img=" + n;
@@ -8398,12 +8607,11 @@ pushMyMessage = function(msgObj, preview) {
 scheduleReply = function(chat, userText) {
   if (!chat || chat.isService) return;
   var cid = chat.id;
-  var typingShown = false;
   // 先显示 typing
   setTimeout(function() {
     if (!messages[cid]) return;
     messages[cid].push({ from: "other", typing: true });
-    typingShown = true;
+    showTypingHeader(true);
     renderMessages(cid);
     var box = document.getElementById("chatMessages");
     if (box) box.scrollTop = box.scrollHeight;
@@ -8415,7 +8623,7 @@ scheduleReply = function(chat, userText) {
     for (var i = messages[cid].length - 1; i >= 0; i--) {
       if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
     }
-    typingShown = false;
+    showTypingHeader(false);
     var sys = personaSystemPrompt(chat, "对话要连贯，记住之前聊过的内容。");
     callTextApi(sys, userText).then(function(reply) {
       if (!messages[cid]) return;
