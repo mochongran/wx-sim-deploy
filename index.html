@@ -5434,7 +5434,7 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   var _defaultApiConfig = {
     text:  { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "deepseek-v4-flash" },
     image: { enabled: true, baseUrl: "https://api.newcoin.tech/v1", key: "sk-rFoLvj4WdhJUI5Hqojy6HcQwHpeuin37sBTHaGNNy4mBGnSF", model: "gpt-image-2" },
-    voice: { enabled: true, baseUrl: "https://api.volink.org/v1", key: "99cxiCdbBN6a697bdf94343c442818f4b8I33qM2rkkD", model: "tts-1", voiceId: "6a55b6dfa12dc97f25dd871d" }
+    voice: { enabled: true, baseUrl: "https://api.volink.org/api/v1/tts", key: "99cxiCdbBN6a697bdf94343c442818f4b8I33qM2rkkD", model: "", voiceId: "6a55b6dfa12dc97f25dd871d" }
   };
   var apiConfig = load("wx_api_config_v1", _defaultApiConfig);
   // 如果旧配置为空（没填过Key），自动用默认值覆盖
@@ -5453,6 +5453,12 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   if (apiConfig.voice && apiConfig.voice.baseUrl && apiConfig.voice.baseUrl.indexOf("aixoras") !== -1) {
     apiConfig.voice = JSON.parse(JSON.stringify(_defaultApiConfig.voice)); _needSave = true;
   }
+  // 归一化 volink 语音地址到真实 TTS 端点（模型留空）
+  if (apiConfig.voice && /volink\.org/.test(apiConfig.voice.baseUrl || "") && /\/tts$/.test(apiConfig.voice.baseUrl) === false) {
+    apiConfig.voice.baseUrl = "https://api.volink.org/api/v1/tts";
+    apiConfig.voice.model = "";
+    _needSave = true;
+  }
   if (_needSave) store("wx_api_config_v1", apiConfig);
   function saveApiConfig() { store("wx_api_config_v1", apiConfig); }
   var API_SERVICES = [
@@ -5463,8 +5469,8 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       desc: "角色垫图、朋友圈配图生成",
       urlPh: "https://api.openai.com/v1", modelPh: "dall-e-3" },
     { key: "voice", name: "语音 API", color: "#07c160", emoji: "🎤",
-      desc: "语音通话、语音消息识别合成",
-      urlPh: "https://api.openai.com/v1", modelPh: "tts-1" }
+      desc: "语音通话、语音消息合成（volink 端点填到 /tts，模型留空）",
+      urlPh: "https://api.volink.org/api/v1/tts", modelPh: "留空即可（volink 不需要模型名）" }
   ];
 
   function openApiSettings() {
@@ -5493,7 +5499,11 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
           (svc.key === "voice" ? '<div class="api-field"><div class="api-field-label">语音 ID (Voice ID)</div>' +
             '<input class="api-input" data-api="voice" data-k="voiceId" value="' + escapeHtml(cfg.voiceId || "") + '" placeholder="如 6a55b6dfa12dc97f25dd871d"></div>' : '') +
         '</div>' +
-      '</div>';
+      '</div>' +
+        '<div class="api-card-actions" style="display:flex;gap:8px;padding:0 16px 12px">' +
+          '<button class="api-test-btn" data-api-test="' + svc.key + '" style="flex:1;height:34px;border:none;border-radius:8px;background:#f2f3f5;color:#333;font-size:13px">测试连接</button>' +
+          (svc.key === "voice" ? '' : '<button class="api-models-btn" data-api-models="' + svc.key + '" style="flex:1;height:34px;border:none;border-radius:8px;background:#f2f3f5;color:#333;font-size:13px">拉取模型</button>') +
+        '</div>';
     }).join("") +
     '<div class="api-save-row"><button class="api-save-btn" id="apiSaveBtn">保存配置</button></div>' +
     '<div class="api-tip">兼容 OpenAI 接口格式：<br>文本 /v1/chat/completions · 图像 /v1/images/generations<br>未配置或调用失败时，自动使用本地模拟生成，不影响使用</div>' +
@@ -5530,6 +5540,74 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
       saveApiConfig();
       showToast("AI 服务配置已保存");
     });
+    // 读取卡片上当前（可能未保存）的配置
+    function readCardCfg(k) {
+      var cfg = JSON.parse(JSON.stringify(apiConfig[k]));
+      body.querySelectorAll('input[data-api="' + k + '"]').forEach(function(inp) {
+        cfg[inp.dataset.k] = inp.value.trim();
+      });
+      return cfg;
+    }
+    function btnBusy(btn, busy, busyText) {
+      if (busy) { btn.dataset.oldText = btn.textContent; btn.textContent = busyText; btn.disabled = true; btn.style.opacity = ".6"; }
+      else { btn.textContent = btn.dataset.oldText || btn.textContent; btn.disabled = false; btn.style.opacity = ""; }
+    }
+    // 测试连接
+    body.querySelectorAll("[data-api-test]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var k = this.dataset.apiTest;
+        var cfg = readCardCfg(k);
+        if (!cfg.key) { showToast("请先填写 API Key"); return; }
+        btnBusy(this, true, "测试中…");
+        var done = function(ok, msg) { btnBusy(btn, false); showToast((ok ? "✓ " : "× ") + msg); };
+        if (k === "voice") {
+          ttsFetchUrl(cfg, "你好，这是语音测试。").then(function(url) {
+            if (!url) { done(false, "合成失败，请检查地址/Key/语音ID"); return; }
+            stopTts();
+            var a = new Audio(url); __ttsAudio = a;
+            a.play().then(function() { done(true, "合成成功，正在播放测试语音"); })
+                  .catch(function() { done(true, "合成成功（浏览器拦截自动播放）"); });
+          }).catch(function(e) { done(false, "失败：" + (e.message || e)); });
+        } else if (k === "image") {
+          fetch(cfg.baseUrl.replace(/\/+$/, "") + "/models", { headers: { "Authorization": "Bearer " + cfg.key } })
+            .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+            .then(function(j) { done(true, "连接成功，可用模型 " + ((j.data || []).length) + " 个"); })
+            .catch(function(e) { done(false, "失败：" + (e.message || e)); });
+        } else {
+          fetch(cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
+            body: JSON.stringify({ model: cfg.model || "gpt-4o-mini", messages: [{ role: "user", content: "回复两个字：在的" }] })
+          }).then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+            .then(function(j) {
+              var c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+              done(true, "连接成功，模型回复：" + String(c || "").slice(0, 16));
+            })
+            .catch(function(e) { done(false, "失败：" + (e.message || e)); });
+        }
+      });
+    });
+    // 拉取模型
+    body.querySelectorAll("[data-api-models]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var k = this.dataset.apiModels;
+        var cfg = readCardCfg(k);
+        if (!cfg.key) { showToast("请先填写 API Key"); return; }
+        btnBusy(this, true, "拉取中…");
+        fetch(cfg.baseUrl.replace(/\/+$/, "") + "/models", { headers: { "Authorization": "Bearer " + cfg.key } })
+          .then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+          .then(function(j) {
+            btnBusy(btn, false);
+            var ids = (j.data || j.models || []).map(function(m) { return m.id || m.name; }).filter(Boolean);
+            if (!ids.length) { showToast("未获取到模型列表"); return; }
+            showModelPicker(ids, function(id) {
+              var inp = body.querySelector('input[data-api="' + k + '"][data-k="model"]');
+              if (inp) { inp.value = id; showToast("已选择模型 " + id); }
+            });
+          })
+          .catch(function(e) { btnBusy(btn, false); showToast("拉取失败：" + (e.message || e)); });
+      });
+    });
     // 朋友圈间隔选择
     var chips = body.querySelectorAll("[data-midx]");
     chips.forEach(function(chip) {
@@ -5547,19 +5625,21 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   }
 
   // ── 文本生成（OpenAI 兼容），失败/未配置返回 null ──
-  function callTextApi(systemPrompt, userText) {
+  function callTextApi(systemPrompt, userText, history) {
     var cfg = apiConfig.text;
     if (!cfg.enabled || !cfg.baseUrl || !cfg.key) return Promise.resolve(null);
     var url = cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions";
+    var msgs = [{ role: "system", content: systemPrompt }];
+    if (history && history.length) msgs = msgs.concat(history);
+    if (userText) msgs.push({ role: "user", content: userText });
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
       body: JSON.stringify({
         model: cfg.model || "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userText }
-        ]
+        messages: msgs,
+        temperature: 0.9,
+        max_tokens: 300
       })
     }).then(function(r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(j) {
@@ -6552,26 +6632,67 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
 // 以下为内容层 API 驱动与交互补全补丁（由后续 append 注入到 IIFE 内末尾）
 // ============================================================
 
-// ── TTS：OpenAI 兼容 /audio/speech，失败返回 null ──
-function callTtsApi(text) {
-  var cfg = apiConfig.voice;
-  if (!cfg.enabled || !cfg.baseUrl || !cfg.key) return Promise.resolve(null);
-  var url = cfg.baseUrl.replace(/\/+$/, "") + "/audio/speech";
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
-    body: JSON.stringify({
+// ── TTS：volink 专用 /api/v1/tts（voice_id+text），兼容 OpenAI /audio/speech ──
+function ttsEndpointInfo(cfg) {
+  var base = (cfg.baseUrl || "").replace(/\/+$/, "");
+  if (/volink\.org/.test(base) || /\/tts$/.test(base)) {
+    var url = /\/tts$/.test(base) ? base : base.replace(/\/v1$/, "") + "/api/v1/tts";
+    return { kind: "volink", url: url };
+  }
+  return { kind: "openai", url: base + "/audio/speech" };
+}
+function ttsFetchUrl(cfg, text) {
+  if (!cfg || cfg.enabled === false || !cfg.baseUrl || !cfg.key) return Promise.resolve(null);
+  var ep = ttsEndpointInfo(cfg);
+  var body;
+  if (ep.kind === "volink") {
+    body = { voice_id: cfg.voiceId || "alloy", text: String(text || "").slice(0, 600) };
+  } else {
+    body = {
       model: cfg.model || "tts-1",
       voice: cfg.voiceId || "alloy",
       input: String(text || "").slice(0, 600),
       response_format: "mp3"
-    })
+    };
+  }
+  return fetch(ep.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
+    body: JSON.stringify(body)
   }).then(function(r) {
-    if (!r.ok) throw new Error("HTTP " + r.status);
+    if (!r.ok) return r.text().then(function(t) { throw new Error("HTTP " + r.status + " " + String(t).slice(0, 100)); });
+    var ct = r.headers.get("content-type") || "";
+    if (ct.indexOf("audio") === -1 && ct.indexOf("mpeg") === -1 && ct.indexOf("octet") === -1) {
+      return r.text().then(function(t) { throw new Error("返回非音频: " + t.slice(0, 100)); });
+    }
     return r.blob();
-  }).then(function(blob) {
-    return URL.createObjectURL(blob);
-  }).catch(function(e) { console.warn("TTS API 失败：", e); return null; });
+  }).then(function(blob) { return URL.createObjectURL(blob); });
+}
+function callTtsApi(text) {
+  return ttsFetchUrl(apiConfig.voice, text).catch(function(e) { console.warn("TTS API 失败：", e); return null; });
+}
+// 模型选择弹层
+function showModelPicker(ids, onPick) {
+  var mask = document.createElement("div");
+  mask.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:flex-end;justify-content:center";
+  var box = document.createElement("div");
+  box.style.cssText = "background:#fff;width:100%;max-width:480px;max-height:70vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden";
+  var head = document.createElement("div");
+  head.style.cssText = "padding:14px 16px;font-size:15px;font-weight:600;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center";
+  head.innerHTML = "<span>选择模型（" + ids.length + "）</span><span id='mpClose' style='color:#999;font-size:22px;cursor:pointer;line-height:1'>&times;</span>";
+  var list = document.createElement("div");
+  list.style.cssText = "overflow-y:auto;-webkit-overflow-scrolling:touch";
+  ids.forEach(function(id) {
+    var item = document.createElement("div");
+    item.textContent = id;
+    item.style.cssText = "padding:13px 16px;font-size:14px;border-bottom:1px solid #f2f2f2;cursor:pointer";
+    item.onclick = function() { document.body.removeChild(mask); onPick(id); };
+    list.appendChild(item);
+  });
+  box.appendChild(head); box.appendChild(list); mask.appendChild(box);
+  mask.onclick = function(e) { if (e.target === mask) document.body.removeChild(mask); };
+  document.body.appendChild(mask);
+  head.querySelector("#mpClose").onclick = function() { document.body.removeChild(mask); };
 }
 
 var __ttsAudio = null;
@@ -6633,6 +6754,9 @@ function personaSystemPrompt(chat, extra) {
     (p ? "你的人设：" + p + "。" : "") +
     "请严格模仿这个性格，用微信聊天的口吻说话：口语化、简短（一两句话，不超过50字）、" +
     "可以用语气词，但不要用表情符号emoji，不要加引号，不要分条罗列，直接输出你要说的话。" +
+    "你是一个真实的人在微信上和朋友闲聊，不是AI助手：禁止说\"作为AI\"\"有什么可以帮你\"\"很高兴为你服务\"这类话，" +
+    "不要客套、不要总结、不要反问\"你觉得呢\"式尬聊；要自然接住对方的话题，可以分享日常、吐槽、开玩笑、主动说起自己的事，" +
+    "回复要有信息量和情绪，像真人朋友发微信那样。" +
     (extra || "");
 }
 function chatPersonaText(chat) { return chat && chat.persona ? chat.persona : ""; }
@@ -8651,8 +8775,19 @@ scheduleReply = function(chat, userText) {
       if (messages[cid][i].typing) { messages[cid].splice(i, 1); break; }
     }
     showTypingHeader(false);
-    var sys = personaSystemPrompt(chat, "对话要连贯，记住之前聊过的内容。");
-    callTextApi(sys, userText).then(function(reply) {
+    var sys = personaSystemPrompt(chat, "对话要连贯，结合上面的聊天记录回复，记住之前聊过的内容。");
+    // 组装最近对话历史（最多12条），让模型有上下文
+    var hist = [];
+    var recent = (messages[cid] || []).filter(function(m) {
+      return !m.typing && (m.text || m.type === "sticker");
+    }).slice(-12);
+    recent.forEach(function(m) {
+      if (m.from === "me") hist.push({ role: "user", content: m.text || "[发了一个表情包]" });
+      else hist.push({ role: "assistant", content: m.text || ("[" + (m.stickerName || "表情包") + "]") });
+    });
+    // 最后一条如果就是本次用户消息，去掉（userText 会再发一次）
+    if (hist.length && hist[hist.length - 1].role === "user" && hist[hist.length - 1].content === userText) hist.pop();
+    callTextApi(sys, userText, hist).then(function(reply) {
       if (!messages[cid]) return;
       // 如果 API 失败，降级到本地模板
       if (!reply) reply = generateReply(userText, chat);
