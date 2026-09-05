@@ -5329,6 +5329,33 @@ textarea.field-input { min-height: 76px; resize: none; line-height: 1.5; }
   function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
   function load(key, def) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch(e) { return def; } }
 
+  // ── 会话/消息持久化（补丁里多处调用，此前漏定义会抛错中断发送链路：输入框不清空、角色不回复） ──
+  function saveChatsState() {
+    try {
+      store("wx_chats_state_v1", { chats: chats, messages: messages });
+    } catch (e) { console.warn("saveChatsState 失败：", e); }
+  }
+  (function restoreChatsState() {
+    try {
+      var saved = load("wx_chats_state_v1", null);
+      if (saved && saved.chats && saved.messages) {
+        saved.chats.forEach(function(sc) {
+          var ex = chats.find(function(c) { return String(c.id) === String(sc.id); });
+          if (ex) {
+            ex.lastMsg = sc.lastMsg; ex.time = sc.time; ex.unread = sc.unread || 0;
+            if (sc.hidden) ex.hidden = sc.hidden;
+          } else {
+            chats.push(sc);
+          }
+        });
+        Object.keys(saved.messages).forEach(function(cid) {
+          // 存档是上次保存时的全量消息（已含种子欢迎语），直接覆盖；过滤未完成的 typing 占位
+          messages[cid] = saved.messages[cid].filter(function(m) { return m && !m.typing; });
+        });
+      }
+    } catch (e) { console.warn("restoreChatsState 失败：", e); }
+  })();
+
   // ── 通用：打开/关闭子页 ──
   // 为新打开的子页分配递增 z-index，确保它盖在已打开的子页之上
   // （多个子页同时 active 时，同 z-index 会按 DOM 顺序层叠，导致后打开的表单被遮挡点不到）
